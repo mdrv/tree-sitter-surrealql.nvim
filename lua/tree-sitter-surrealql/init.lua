@@ -37,15 +37,15 @@ function M.setup(opts)
 
 	-- Register parser with nvim-treesitter for :TSInstall surrealql
 	local ok, parsers = pcall(require, "nvim-treesitter.parsers")
-	if ok and parsers.get_parser_configs then
-		local parser_config = parsers.get_parser_configs()
-		parser_config.surrealql = {
+	if ok then
+		parsers.surrealql = {
 			install_info = {
 				url = opts.url or "https://github.com/overrealdb/tree-sitter-surrealql.git",
 				files = { "src/parser.c" },
 				branch = opts.branch or "main",
 			},
 			filetype = "surrealql",
+			queries = "queries",
 		}
 	end
 
