@@ -63,9 +63,9 @@ function M._register()
 			url = (config and config.url) or "https://github.com/overrealdb/tree-sitter-surrealql.git",
 			files = { "src/parser.c" },
 			branch = (config and config.branch) or "main",
+			queries = "queries",
 		},
 		filetype = "surrealql",
-		queries = "queries",
 	}
 end
 
