@@ -37,6 +37,18 @@ function M.setup(opts)
 	-- Register filetype → language mapping for Neovim's built-in tree-sitter
 	vim.treesitter.language.register("surrealql", "surrealql")
 
+	-- Enable treesitter highlighting for surql files.
+	-- nvim-treesitter (main branch) no longer has a highlight module —
+	-- highlighting is delegated to Neovim's built-in treesitter, which
+	-- only auto-starts for known languages. Custom parsers need an explicit
+	-- vim.treesitter.start() call.
+	vim.api.nvim_create_autocmd("FileType", {
+		pattern = "surrealql",
+		callback = function()
+			pcall(vim.treesitter.start)
+		end,
+	})
+
 	-- Register into nvim-treesitter's parser list now and after every reload.
 	-- nvim-treesitter nils package.loaded and re-requires parsers.lua before
 	-- reading the list, so we must re-inject on each User TSUpdate event.
