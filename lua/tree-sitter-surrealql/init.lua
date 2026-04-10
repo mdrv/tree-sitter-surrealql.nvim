@@ -1,4 +1,5 @@
 local M = {}
+local config = nil
 
 ---@class SurrealqlOpts
 ---@field url? string Override parser repository URL
@@ -23,6 +24,7 @@ local M = {}
 ---@param opts SurrealqlOpts|nil
 function M.setup(opts)
 	opts = opts or {}
+	config = opts
 
 	-- Filetype detection: .surql and .surrealql files
 	vim.filetype.add({
@@ -35,21 +37,41 @@ function M.setup(opts)
 	-- Register filetype → language mapping for Neovim's built-in tree-sitter
 	vim.treesitter.language.register("surrealql", "surrealql")
 
-	-- Register parser with nvim-treesitter for :TSInstall surrealql
-	local ok, parsers = pcall(require, "nvim-treesitter.parsers")
-	if ok then
-		parsers.surrealql = {
-			install_info = {
-				url = opts.url or "https://github.com/overrealdb/tree-sitter-surrealql.git",
-				files = { "src/parser.c" },
-				branch = opts.branch or "main",
-			},
-			filetype = "surrealql",
-			queries = "queries",
-		}
-	end
+	-- Register into nvim-treesitter's parser list now and after every reload.
+	-- nvim-treesitter nils package.loaded and re-requires parsers.lua before
+	-- reading the list, so we must re-inject on each User TSUpdate event.
+	M._register()
+	vim.api.nvim_create_autocmd("User", {
+		pattern = "TSUpdate",
+		callback = function()
+			M._register()
+		end,
+	})
 
 	-- Write custom query overrides to cache if provided
+	M._write_query_overrides(opts)
+end
+
+--- Register parser with nvim-treesitter (called on setup and each TSUpdate)
+function M._register()
+	local ok, parsers = pcall(require, "nvim-treesitter.parsers")
+	if not ok then
+		return
+	end
+	parsers.surrealql = {
+		install_info = {
+			url = (config and config.url) or "https://github.com/overrealdb/tree-sitter-surrealql.git",
+			files = { "src/parser.c" },
+			branch = (config and config.branch) or "main",
+		},
+		filetype = "surrealql",
+		queries = "queries",
+	}
+end
+
+--- Write custom query overrides to nvim's cache directory
+---@param opts SurrealqlOpts
+function M._write_query_overrides(opts)
 	local query_overrides = {
 		{ enabled = opts.override_highlights, content = opts.highlights, path = "queries/surrealql/highlights.scm" },
 		{ enabled = opts.override_folds, content = opts.folds, path = "queries/surrealql/folds.scm" },
