@@ -17,10 +17,12 @@ local config = nil
 ---
 --- Configures filetype detection, registers the parser with nvim-treesitter,
 --- and optionally sets up query overrides.
----
 --- The parser is sourced from overrealdb/tree-sitter-surrealql which targets
 --- SurrealDB 3+ exclusively and ships with comprehensive query files
---- (highlights, folds, indents, injections).
+--- (highlights, folds, indents).
+--- NOTE: The repo's injections.scm references Rust-only node types (macro_invocation,
+--- token_tree, etc.) and causes a query parse error in Neovim 0.12+. We
+--- remove it after install and ship a corrected empty one instead.
 ---@param opts SurrealqlOpts|nil
 function M.setup(opts)
 	opts = opts or {}
@@ -57,8 +59,17 @@ function M.setup(opts)
 		pattern = "TSUpdate",
 		callback = function()
 			M._register()
+			M._fix_injections()
 		end,
 	})
+
+	-- Remove the broken injections.scm shipped by the upstream parser repo.
+	-- It references Rust node types (macro_invocation, token_tree) which don't
+	-- exist in the surrealql parser, causing Neovim 0.12+ to fail with:
+	--   "Query error: Invalid node type \"macro_invocation\""
+	-- This must run on setup and after every TSUpdate since reinstalling the
+	-- parser re-copies the broken file.
+	M._fix_injections()
 
 	-- Write custom query overrides to cache if provided
 	M._write_query_overrides(opts)
@@ -79,6 +90,28 @@ function M._register()
 		},
 		filetype = "surrealql",
 	}
+end
+
+--- Remove the broken injections.scm that ships with the upstream parser
+--- The upstream repo's injections.scm targets Rust→SurrealQL injection but is
+--- placed in the surrealql query dir, causing Neovim 0.12 to reject it.
+function M._fix_injections()
+	local paths = vim.api.nvim_get_runtime_file("queries/surrealql/injections.scm", false)
+	for _, path in ipairs(paths) do
+		local file = io.open(path, "r")
+		if file then
+			local content = file:read("*a")
+			file:close()
+			-- Only remove if it contains Rust-specific node types
+			if content:find("macro_invocation") then
+				local f = io.open(path, "w")
+				if f then
+					f:write("; SurrealQL injections (upstream Rust-targeting injections removed)\n")
+					f:close()
+				end
+			end
+		end
+	end
 end
 
 --- Write custom query overrides to nvim's cache directory
